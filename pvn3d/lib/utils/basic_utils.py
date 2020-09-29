@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 import os
 import numpy as np
+import pcl
 import cv2
 from lib.utils.ip_basic.ip_basic import depth_map_utils_ycb as depth_map_utils
 from lib.utils.ip_basic.ip_basic import vis_utils
 from plyfile import PlyData
 import random
 import torch
-
+#import pcl
+from scipy.spatial.transform import Rotation as Rot
 
 intrinsic_matrix = {
     'linemod': np.array([[572.4114, 0.,         325.2611],
@@ -79,6 +81,21 @@ def best_fit_transform(A, B):
     T[:, 3] = t
     return  T
 
+def write_points(filename, pts, colors=None):
+    has_color=pts.shape[1]>=6
+    with open(filename, 'w') as f:
+        for i,pt in enumerate(pts):
+            if colors is None:
+                if has_color:
+                    f.write('{} {} {} {} {} {}\n'.format(pt[0],pt[1],pt[2],int(pt[3]),int(pt[4]),int(pt[5])))
+                else:
+                    f.write('{} {} {}\n'.format(pt[0],pt[1],pt[2]))
+
+            else:
+                if colors.shape[0]==pts.shape[0]:
+                    f.write('{} {} {} {} {} {}\n'.format(pt[0],pt[1],pt[2],int(colors[i,0]),int(colors[i,1]),int(colors[i,2])))
+                else:
+                    f.write('{} {} {} {} {} {}\n'.format(pt[0],pt[1],pt[2],int(colors[0]),int(colors[1]),int(colors[2])))
 
 class PoseTransformer(object):
     rotation_transform = np.array([[1., 0., 0.],
@@ -304,23 +321,98 @@ class Basic_Utils():
             clusters[cluster_index]['data'].append(data[i])
 
     def project_p3d(self, p3d, cam_scale, K=intrinsic_matrix['ycb_K1']):
-        p3d = p3d * cam_scale
-        p2d = np.dot(p3d, K.T)
-        p2d_3 = p2d[:, 2]
-        p2d_3[np.where(p2d_3 < 1e-8)] = 1.0
-        p2d[:, 2] = p2d_3
-        p2d = np.around((p2d[:, :2] / p2d[:, 2:])).astype(np.int32)
-        return p2d
+        if p3d.shape[1]<4:
+            p3d = p3d * cam_scale
+            p2d = np.dot(p3d, K.T)
+            p2d_3 = p2d[:, 2]
+            p2d_3[np.where(p2d_3 < 1e-8)] = 1.0
+            p2d[:, 2] = p2d_3
+            p2d = np.around((p2d[:, :2] / p2d[:, 2:])).astype(np.int32)
+            return p2d
+        else:
+            p3d = p3d * cam_scale
+            #print(p3d.shape)
+            print('xyz_rgb points projected to 2D')
+            p2d = np.dot(p3d[: , 0:3], K.T)
+            p2d_3 = p2d[:, 2]
+            filter = np.where(p2d_3 < 1e-8)
+            if filter[0].shape[0]>0:
+                p2d_rgbs = p3d[filter, 3:6]
+                p2d_3[filter] = 1.0
+            else:
+                p2d_rgbs = p3d[:, 3:6]
+            p2d[:, 2] = p2d_3
+            p2d = np.around((p2d[:, :2] / p2d[:, 2:])).astype(np.int32)
+            #print(p3d.shape)
+            #print(p2d.shape)
+            return np.concatenate((p2d, p2d_rgbs), axis=1).astype(np.int32)
 
-    def draw_p2ds(self, img, p2ds, r=1, color=(255, 0, 0)):
+    def draw_p2ds(self, img, p2ds, color, rad):
         h, w = img.shape[0], img.shape[1]
         for pt_2d in p2ds:
             pt_2d[0] = np.clip(pt_2d[0], 0, w)
             pt_2d[1] = np.clip(pt_2d[1], 0, h)
+            if p2ds.shape[1]>2:
+                img = cv2.circle(
+                    cv2.UMat(img), (pt_2d[0], pt_2d[1]), rad, (int(pt_2d[2]), int(pt_2d[3]), int(pt_2d[4])) , -1
+                )
+            else:
+                img = cv2.circle(
+                    cv2.UMat(img), (pt_2d[0], pt_2d[1]), rad, color, -1
+                )
+            '''
             img = cv2.circle(
-                img, (pt_2d[0], pt_2d[1]), r, color, -1
-            )
+                img, (pt_2d[0], pt_2d[1]), rad, color, -1
+            )'''
+        return img.get()
+
+    def draw_bounding_box(self, img, corner):
+        print(corner.shape)
+        img = cv2.line(img, tuple(corner[0]), tuple(corner[1]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[0]), tuple(corner[2]), (0,255,255),2)
+        img = cv2.line(img, tuple(corner[2]), tuple(corner[3]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[3]), tuple(corner[1]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[4]), tuple(corner[5]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[5]), tuple(corner[7]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[6]), tuple(corner[2]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[3]), tuple(corner[7]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[6]), tuple(corner[2]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[4]), tuple(corner[0]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[4]), tuple(corner[6]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[6]), tuple(corner[7]), (0,255,255), 2)
+        img = cv2.line(img, tuple(corner[1]), tuple(corner[5]), (0,255,255), 2)
         return img
+
+    '''
+    def draw_axis(self, img, R, t, K):
+        # unit is mm
+        #img = np.array(im, copy=True)
+        cam2opt = (Rot.from_euler('zyx', [1.57, 0, 1.57])).as_dcm()
+        R = np.matmul(cam2opt, R)
+        rotV, _ = cv2.Rodrigues(R)
+        points = np.float32([[0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5], [0, 0, 0]]).reshape(-1, 3)
+        axisPoints, _ = cv2.projectPoints(points, rotV, t, K, (0, 0, 0, 0))
+        #print ('axis points '+str(axisPoints.shape))
+        img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[0].ravel()), (255,0,0), 3)
+        img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[1].ravel()), (0,255,0), 3)
+        img = cv2.line(img, tuple(axisPoints[3].ravel()), tuple(axisPoints[2].ravel()), (0,0,255), 3)
+        return img'''
+    def draw_axis(self, img, R, t, K_mat):
+        x_axis = R[:,0]
+        y_axis = R[:,1]
+        z_axis = R[:,2]
+        pt_x = (x_axis).reshape(1,3)
+        pt_y = (y_axis).reshape(1,3)
+        pt_z = (z_axis).reshape(1,3)
+        pt_init = t.reshape(1,3)
+        all_pts = np.vstack(( pt_x, pt_y, pt_z, pt_init ))
+        p2ds = self.project_p3d(all_pts, 1, K= K_mat)
+        img = cv2.line(img, tuple(p2ds[3]), tuple(p2ds[0]) , (255,0,0), 3)
+        img = cv2.line(img, tuple(p2ds[3]), tuple(p2ds[1]) , (0,255,0), 3)
+        img = cv2.line(img, tuple(p2ds[3]), tuple(p2ds[2]) , (0,0,255), 3)
+        return img
+
+
 
     def get_show_label_img(self, labels, mode=1):
         cls_ids = np.unique(labels)
@@ -379,6 +471,7 @@ class Basic_Utils():
         return bgr
 
     def dpt_2_cld(self, dpt, cam_scale, K):
+
         if len(dpt.shape) > 2:
             dpt = dpt[:, :, 0]
         msk_dp = dpt > 1e-6
@@ -508,6 +601,18 @@ class Basic_Utils():
             pointxyz = np.loadtxt(ptxyz_ptn.format(cls), dtype=np.float32)
             self.ycb_cls_ptsxyz_dict[cls] = pointxyz
             return pointxyz
+
+        elif ds_type == 'openDR':
+            ptxyz_pth = os.path.join('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/models', 'obj_'+str(cls)+'.ply')
+            #pointxyz = self.ply_vtx(ptxyz_pth)
+            pointxyz = np.asarray(pcl.load(ptxyz_pth))
+            dellist = [j for j in range(0, len(pointxyz))]
+            dellist = random.sample(dellist, len(pointxyz) - 2000)
+            pointxyz = np.delete(pointxyz, dellist, axis=0)
+            self.lm_cls_ptsxyz_dict[cls] = pointxyz
+            return pointxyz
+
+
         else:
             ptxyz_pth = os.path.join(
                 'datasets/linemod/Linemod_preprocessed/models',
@@ -530,6 +635,14 @@ class Basic_Utils():
             ptsxyz_cu = torch.from_numpy(ptsxyz.astype(np.float32)).cuda()
             self.ycb_cls_ptsxyz_cuda_dict[cls] = ptsxyz_cu
             return ptsxyz_cu.clone()
+
+        elif ds_type == "openDR":
+
+            ptsxyz = self.get_pointxyz(cls, ds_type)
+            ptsxyz_cu = torch.from_numpy(ptsxyz.astype(np.float32)).cuda()
+
+            return ptsxyz_cu.clone()
+
         else:
             if cls in self.lm_cls_ptsxyz_cuda_dict.keys():
                 return self.lm_cls_ptsxyz_cuda_dict[cls].clone()
@@ -544,6 +657,10 @@ class Basic_Utils():
         if type(cls) is int:
             if ds_type == 'ycb':
                 cls = self.ycb_cls_lst[cls - 1]
+
+            elif ds_type == 'openDR':
+                kps = np.loadtxt(self.config.openDR_kps_dir+'/{}/{}.txt'.format(cls+1,kp_type), dtype=np.float32)
+                return kps.copy()
             else:
                 cls = self.config.lm_id2obj_dict[cls]
         if ds_type == "ycb":
@@ -554,7 +671,9 @@ class Basic_Utils():
             )
             kps = np.loadtxt(kps_pattern.format(cls), dtype=np.float32)
             self.ycb_cls_kps_dict[cls] = kps
-        else:
+
+
+        elif ds_type == "linemod":
             if cls in self.lm_cls_kps_dict.keys():
                 return self.lm_cls_kps_dict[cls].copy()
             kps_pattern = os.path.join(
@@ -568,6 +687,8 @@ class Basic_Utils():
         if type(cls) is int:
             if ds_type == 'ycb':
                 cls = self.ycb_cls_lst[cls - 1]
+            elif ds_type == 'openDR':
+                pass
             else:
                 cls = self.config.lm_id2obj_dict[cls]
         if ds_type == "ycb":
@@ -579,6 +700,15 @@ class Basic_Utils():
             cors = np.loadtxt(cor_pattern.format(cls), dtype=np.float32)
             ctr = cors.mean(0)
             self.ycb_cls_ctr_dict[cls] = ctr
+
+        elif ds_type == 'openDR':
+            cor_pattern = os.path.join(
+                self.config.openDR_kps_dir, '{}/corners.txt'.format(cls+1),
+            )
+            cors = np.loadtxt(cor_pattern.format(cls+1), dtype=np.float32)
+            ctr = cors.mean(0)
+
+
         else:
             if cls in self.lm_cls_ctr_dict.keys():
                 return self.lm_cls_ctr_dict[cls].copy()
@@ -604,6 +734,8 @@ class Basic_Utils():
     ):
         if ds_type == 'ycb':
             cls_nm = self.ycb_cls_lst[cls_id-1]
+        elif ds_type== 'openDR':
+            cls_nm = cls_id
         else:
             cls_nm = self.lm_cls_lst[cls_id-1]
         kp_on_mesh = self.get_kps(cls_nm, kp_type=kp_type)
@@ -666,6 +798,69 @@ class Basic_Utils():
 
     def best_fit_transform(self, A, B):
         return best_fit_transform(A, B)
+
+    # Furthest point sampling
+    '''
+    def farthest_point_sampling(pts,sn,init_center=False):
+        pn,_=pts.shape
+        assert(pts.shape[1]==3)
+
+        pts=np.ascontiguousarray(pts,np.float32)
+        idxs=np.ascontiguousarray(np.zeros([sn],np.int32))
+
+        pts_ptr=ffi.cast('float*',pts.ctypes.data)
+        idxs_ptr=ffi.cast('int*',idxs.ctypes.data)
+
+        if init_center:
+            lib.farthest_point_sampling_init_center(pts_ptr, idxs_ptr, pn, sn)
+        else:
+            lib.farthest_point_sampling(pts_ptr,idxs_ptr,pn,sn)
+
+        return pts[idxs]
+
+
+    def compute_farthest_surface_point_3d(cls):
+
+        cloud = pcl.load(os.path.join(self.config.lm_root,'Linemod_preprocessed/models','obj_{}.ply'.format(self.config.lm_obj_dict[cls]))
+        pts = np.array(cloud)
+        spts = self.farthest_point_sampling(pts,8,True)
+        write_points(os.path.join(self.config.lm_kps_dir,self.config.lm_obj_dict[cls], 'farthest.txt'),spts)
+    '''
+from sklearn.metrics.pairwise import pairwise_distances
+def farthestPointSampling(pts, nPts ):
+    """
+    A Naive O(N^2) algorithm to do furthest points sampling
+
+    Parameters
+    ----------
+    pts : (N x 2) or (N x 3) array of 2d or 3d points
+    nPts: no. of farthest points to be sampled
+
+    Return
+    ------
+    fps_pts: nPts farthest sampled points in the shape of pts
+    """
+
+    mean = np.mean(pts,axis=0)
+    intial_pt_idx = np.argmin(np.linalg.norm(pts-mean,axis=1)) #Point closest to mean is taken as initial point
+    D = pairwise_distances(pts, metric='euclidean') ## D : ndarray (N, N) An NxN distance matrix for points
+    N = D.shape[0]
+
+    #By default, takes the first point in the list to be the
+    #first point in the permutation, but could be random
+    perm = np.zeros(N, dtype=np.int64)
+    lambdas = np.zeros(N)
+
+    ds = D[0, :]
+    #ds = D[intial_pt_idx, :]
+    for i in range(1, N):
+        idx = np.argmax(ds)
+        perm[i] = idx
+        lambdas[i] = ds[idx]
+        ds = np.minimum(ds, D[idx, :])
+
+    return perm[0:nPts]
+
 
 
 if __name__ == "__main__":

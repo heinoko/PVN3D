@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import time
 import torch
 import torch.nn as nn
@@ -20,7 +21,8 @@ bs_utils = Basic_Utils(config)
 config_lm = Config(dataset_name="linemod")
 bs_utils_lm = Basic_Utils(config_lm)
 cls_lst = config.ycb_cls_lst
-
+config_od = Config(dataset_name='openDR')
+bs_utils_od = Basic_Utils(config_od)
 
 class VotingType:
     BB8=0
@@ -34,9 +36,12 @@ class VotingType:
     Farthest20=9
 
 
-def cal_frame_poses(
-    pcld, mask, ctr_of, pred_kp_of, use_ctr, n_cls, use_ctr_clus_flter
+def eval_one_frame_pose(
+    item
 ):
+    pcld, mask, ctr_of, pred_kp_of, RTs, cls_ids, use_ctr, n_cls, \
+        min_cnt, use_ctr_clus_flter, label, epoch, ibs, ds = item
+    ds = str(ds)
     n_kps, n_pts, _ = pred_kp_of.size()
     pred_ctr = pcld - ctr_of[0]
     pred_kp = pcld.view(1, n_pts, 3).repeat(n_kps, 1, 1) - pred_kp_of
@@ -48,6 +53,8 @@ def cal_frame_poses(
         cls_kps = torch.zeros(n_cls, n_kps, 3).cuda()
 
     pred_cls_ids = np.unique(mask[mask>0].contiguous().cpu().numpy())
+    print('pred_cls_ids '+str(pred_cls_ids))
+
     if use_ctr_clus_flter:
        ctrs = []
        for icls, cls_id in enumerate(pred_cls_ids):
@@ -66,12 +73,16 @@ def cal_frame_poses(
        for cls_id in pred_cls_ids:
            if cls_id == 0:
                break
-           min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
+           if ds =='ycb':
+               min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
+           else:
+               min_msk = min_dis < config_od.openDR_r_lst[cls_id-1] * 0.8
            update_msk = (mask > 0) & (msk_closest_ctr == cls_id) & min_msk
            new_msk[update_msk] = msk_closest_ctr[update_msk]
        mask = new_msk
 
     pred_pose_lst = []
+    pred_kps_lst = []
     for icls, cls_id in enumerate(pred_cls_ids):
         if cls_id == 0:
             break
@@ -92,26 +103,134 @@ def cal_frame_poses(
             in_pred_kp = cls_voted_kps[:, ctr_labels, :]
         else:
             in_pred_kp = cls_voted_kps
-
         for ikp, kps3d in enumerate(in_pred_kp):
             cls_kps[cls_id, ikp, :], _ = ms.fit(kps3d)
-
-        mesh_kps = bs_utils.get_kps(cls_lst[cls_id-1])
-        if use_ctr:
-            mesh_ctr = bs_utils.get_ctr(cls_lst[cls_id-1]).reshape(1,3)
-            mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
+        if ds =='ycb':
+            mesh_kps = bs_utils.get_kps(cls_lst[cls_id-1])
+            if use_ctr:
+                 mesh_ctr = bs_utils.get_ctr(cls_lst[cls_id-1]).reshape(1,3)
+                 mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
+        else:
+            mesh_kps = bs_utils_od.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_od.n_keypoints), ds_type='openDR')
+            if use_ctr:
+                 mesh_ctr = bs_utils_od.get_ctr(int(cls_id-1), ds_type='openDR').reshape(1,3)
+                 mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
         mesh_kps = torch.from_numpy(mesh_kps.astype(np.float32)).cuda()
         pred_RT = bs_utils.best_fit_transform(
             mesh_kps.contiguous().cpu().numpy(),
             cls_kps[cls_id].squeeze().contiguous().cpu().numpy()
         )
         pred_pose_lst.append(pred_RT)
+        pred_kps_lst.append(cls_kps[cls_id].squeeze().contiguous().cpu().numpy())
 
-    return (pred_cls_ids, pred_pose_lst)
+    cls_add_dis, cls_adds_dis = eval_metric(
+        cls_ids, pred_pose_lst, pred_cls_ids, RTs, mask, label, ds
+    )
+    '''
+    cls_add_dis = []
+    cls_adds_dis = []'''
+    return (cls_add_dis, cls_adds_dis, pred_pose_lst, pred_kps_lst )
+
+def cal_frame_poses(
+    pcld, mask, ctr_of, pred_kp_of, use_ctr, n_cls, use_ctr_clus_flter, ds
+):
+    try:
+        n_kps, n_pts, _ = pred_kp_of.size()
+        pred_ctr = pcld - ctr_of[0]
+        pred_kp = pcld.view(1, n_pts, 3).repeat(n_kps, 1, 1) - pred_kp_of
+
+        radius=0.08
+        if use_ctr:
+            cls_kps = torch.zeros(n_cls, n_kps+1, 3).cuda()
+        else:
+            cls_kps = torch.zeros(n_cls, n_kps, 3).cuda()
+
+        pred_cls_ids = np.unique(mask[mask>0].contiguous().cpu().numpy())
+        if use_ctr_clus_flter:
+           ctrs = []
+           for icls, cls_id in enumerate(pred_cls_ids):
+               cls_msk = (mask == cls_id)
+               ms = MeanShiftTorch(bandwidth=radius)
+               ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+               ctrs.append(ctr.detach().contiguous().cpu().numpy())
+           ctrs = torch.from_numpy(np.array(ctrs).astype(np.float32)).cuda()
+           n_ctrs, _ = ctrs.size()
+           pred_ctr_rp = pred_ctr.view(n_pts, 1, 3).repeat(1, n_ctrs, 1)
+           ctrs_rp = ctrs.view(1, n_ctrs, 3).repeat(n_pts, 1, 1)
+           ctr_dis = torch.norm((pred_ctr_rp - ctrs_rp), dim=2)
+           min_dis, min_idx = torch.min(ctr_dis, dim=1)
+           msk_closest_ctr = torch.LongTensor(pred_cls_ids).cuda()[min_idx]
+           new_msk = mask.clone()
+           for cls_id in pred_cls_ids:
+               if cls_id == 0:
+                   break
+               if ds =='ycb':
+                   min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
+               else:
+                   min_msk = min_dis < config_od.openDR_r_lst[cls_id-1] * 0.8
+               min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
+               update_msk = (mask > 0) & (msk_closest_ctr == cls_id) & min_msk
+               new_msk[update_msk] = msk_closest_ctr[update_msk]
+           mask = new_msk
+
+        pred_pose_lst = []
+        pred_kps_lst = []
+        for icls, cls_id in enumerate(pred_cls_ids):
+            if cls_id == 0:
+                break
+            cls_msk = mask == cls_id
+            if cls_msk.sum() < 1:
+                pred_pose_lst.append(np.identity(4)[:3,:])
+                continue
+
+            cls_voted_kps = pred_kp[:, cls_msk, :]
+            ms = MeanShiftTorch(bandwidth=radius)
+            ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+            if ctr_labels.sum() < 1:
+                ctr_labels[0] = 1
+            if use_ctr:
+                cls_kps[cls_id, n_kps, :] = ctr
+
+            if use_ctr_clus_flter:
+                in_pred_kp = cls_voted_kps[:, ctr_labels, :]
+            else:
+                in_pred_kp = cls_voted_kps
+
+            for ikp, kps3d in enumerate(in_pred_kp):
+                cls_kps[cls_id, ikp, :], _ = ms.fit(kps3d)
+            if ds =='ycb':
+                mesh_kps = bs_utils.get_kps(cls_lst[cls_id-1])
+                if use_ctr:
+                     mesh_ctr = bs_utils.get_ctr(cls_lst[cls_id-1]).reshape(1,3)
+                     mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
+            else:
+                mesh_kps = bs_utils_od.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_od.n_keypoints), ds_type='openDR')
+                if use_ctr:
+                     mesh_ctr = bs_utils_od.get_ctr(int(cls_id-1), ds_type='openDR').reshape(1,3)
+                     mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
 
 
-def eval_metric(cls_ids, pred_pose_lst, pred_cls_ids, RTs, mask, label):
-    n_cls = config.n_classes
+
+            mesh_kps = torch.from_numpy(mesh_kps.astype(np.float32)).cuda()
+            pred_RT = bs_utils.best_fit_transform(
+                mesh_kps.contiguous().cpu().numpy(),
+                cls_kps[cls_id].squeeze().contiguous().cpu().numpy()
+            )
+            pred_pose_lst.append(pred_RT)
+            pred_kps_lst.append(cls_kps[cls_id].squeeze().contiguous().cpu().numpy())
+        return (pred_cls_ids, pred_pose_lst, pred_kps_lst)
+
+    except Exception as inst:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        print('Cal_frame_poses: exception: '+str(inst)+' in '+ str(exc_tb.tb_lineno))
+
+
+def eval_metric(cls_ids, pred_pose_lst, pred_cls_ids, RTs, mask, label, ds):
+
+    if ds=='ycb':
+        n_cls = config.n_classes
+    elif ds=='openDR':
+        n_cls = config_od.n_classes
     cls_add_dis = [list() for i in range(n_cls)]
     cls_adds_dis = [list() for i in range(n_cls)]
     for icls, cls_id in enumerate(cls_ids):
@@ -126,7 +245,10 @@ def eval_metric(cls_ids, pred_pose_lst, pred_cls_ids, RTs, mask, label):
             pred_RT = pred_pose_lst[cls_idx[0]]
             pred_RT = torch.from_numpy(pred_RT.astype(np.float32)).cuda()
         gt_RT = RTs[icls]
-        mesh_pts = bs_utils.get_pointxyz_cuda(cls_lst[cls_id-1]).clone()
+        if ds=='ycb':
+            mesh_pts = bs_utils.get_pointxyz_cuda(cls_lst[cls_id-1], ds_type=ds).clone()
+        elif ds=='openDR':
+            mesh_pts = bs_utils.get_pointxyz_cuda(int(cls_id), ds_type=ds).clone()
         add = bs_utils.cal_add_cuda(pred_RT, gt_RT, mesh_pts)
         adds = bs_utils.cal_adds_cuda(pred_RT, gt_RT, mesh_pts)
         cls_add_dis[cls_id].append(add.item())
@@ -137,21 +259,90 @@ def eval_metric(cls_ids, pred_pose_lst, pred_cls_ids, RTs, mask, label):
     return (cls_add_dis, cls_adds_dis)
 
 
-def eval_one_frame_pose(
+def eval_metric_lm(cls_ids, pred_pose_lst, RTs, mask, label, obj_id):
+    n_cls = config.n_classes
+    cls_add_dis = [list() for i in range(n_cls)]
+    cls_adds_dis = [list() for i in range(n_cls)]
+
+    pred_RT = pred_pose_lst[0]
+    pred_RT = torch.from_numpy(pred_RT.astype(np.float32)).cuda()
+    gt_RT = RTs[0]
+    mesh_pts = bs_utils_lm.get_pointxyz_cuda(obj_id, ds_type="linemod").clone()
+    add = bs_utils_lm.cal_add_cuda(pred_RT, gt_RT, mesh_pts)
+    adds = bs_utils_lm.cal_adds_cuda(pred_RT, gt_RT, mesh_pts)
+    cls_add_dis[obj_id].append(add.item())
+    cls_adds_dis[obj_id].append(adds.item())
+    cls_add_dis[0].append(add.item())
+    cls_adds_dis[0].append(adds.item())
+
+    return (cls_add_dis, cls_adds_dis)
+
+
+def eval_one_frame_pose_lm(
     item
 ):
     pcld, mask, ctr_of, pred_kp_of, RTs, cls_ids, use_ctr, n_cls, \
-        min_cnt, use_ctr_clus_flter, label, epoch, ibs = item
+        min_cnt, use_ctr_clus_flter, label, epoch, ibs, obj_id = item
+    n_kps, n_pts, _ = pred_kp_of.size()
+    pred_ctr = pcld - ctr_of[0]
+    pred_kp = pcld.view(1, n_pts, 3).repeat(n_kps, 1, 1) - pred_kp_of
+    #print('pose_parallel_1')
+    radius=0.08
 
-    pred_cls_ids, pred_pose_lst = cal_frame_poses(
-        pcld, mask, ctr_of, pred_kp_of, use_ctr, n_cls, use_ctr_clus_flter
+    if use_ctr:
+        cls_kps = torch.zeros(n_cls, n_kps+1, 3).cuda()
+    else:
+        cls_kps = torch.zeros(n_cls, n_kps, 3).cuda()
+    #print('pose_parallel_2')
+    pred_pose_lst = []
+    pred_kps_lst = []
+    cls_id = 1
+    cls_msk = mask == cls_id
+    if cls_msk.sum() < 1:
+        pred_pose_lst.append(np.identity(4)[:3,:])
+    else:
+
+        cls_voted_kps = pred_kp[:, cls_msk, :]
+        ms = MeanShiftTorch(bandwidth=radius)
+        #print('mask shape: '+str(cls_msk.nonzero().shape) )
+        ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+        #print('pose_parallel_3a')
+        if ctr_labels.sum() < 1:
+            ctr_labels[0] = 1
+        if use_ctr:
+            cls_kps[cls_id, n_kps, :] = ctr
+
+        if use_ctr_clus_flter:
+            in_pred_kp = cls_voted_kps[:, ctr_labels, :]
+        else:
+            in_pred_kp = cls_voted_kps
+
+        for ikp, kps3d in enumerate(in_pred_kp):
+            cls_kps[cls_id, ikp, :], _ = ms.fit(kps3d)
+        #print('pose_parallel_3')
+
+        mesh_kps = bs_utils_lm.get_kps(obj_id, ds_type="linemod")
+        if use_ctr:
+            mesh_ctr = bs_utils_lm.get_ctr(obj_id, ds_type="linemod").reshape(1,3)
+            mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
+        #print('pose_parallel_4')
+        mesh_kps = torch.from_numpy(mesh_kps.astype(np.float32)).cuda()
+        pred_RT = bs_utils_lm.best_fit_transform(
+            mesh_kps.contiguous().cpu().numpy(),
+            cls_kps[cls_id].squeeze().contiguous().cpu().numpy()
+        )
+        pred_pose_lst.append(pred_RT)
+        pred_kps_lst.append(cls_kps[cls_id].squeeze().contiguous().cpu().numpy())
+        #print('pose_parallel_5')
+
+    cls_add_dis, cls_adds_dis = eval_metric_lm(
+        cls_ids, pred_pose_lst, RTs, mask, label, obj_id
     )
+    '''
+    cls_add_dis = []
+    cls_adds_dis = []'''
 
-    cls_add_dis, cls_adds_dis = eval_metric(
-        cls_ids, pred_pose_lst, pred_cls_ids, RTs, mask, label
-    )
-    return (cls_add_dis, cls_adds_dis)
-
+    return (cls_add_dis, cls_adds_dis, pred_pose_lst, pred_kps_lst )
 
 def cal_frame_poses_lm(
     pcld, mask, ctr_of, pred_kp_of, use_ctr, n_cls, use_ctr_clus_flter, obj_id
@@ -160,13 +351,14 @@ def cal_frame_poses_lm(
     pred_ctr = pcld - ctr_of[0]
     pred_kp = pcld.view(1, n_pts, 3).repeat(n_kps, 1, 1) - pred_kp_of
 
-    radius=0.08
+    radius=0.05 # 0.08
     if use_ctr:
         cls_kps = torch.zeros(n_cls, n_kps+1, 3).cuda()
     else:
         ls_kps = torch.zeros(n_cls, n_kps, 3).cuda()
 
     pred_pose_lst = []
+    pred_kps_lst = []
     cls_id = 1
     cls_msk = mask == cls_id
     if cls_msk.sum() < 1:
@@ -198,60 +390,39 @@ def cal_frame_poses_lm(
             cls_kps[cls_id].squeeze().contiguous().cpu().numpy()
         )
         pred_pose_lst.append(pred_RT)
-    return pred_pose_lst
-
-
-def eval_metric_lm(cls_ids, pred_pose_lst, RTs, mask, label, obj_id):
-    n_cls = config.n_classes
-    cls_add_dis = [list() for i in range(n_cls)]
-    cls_adds_dis = [list() for i in range(n_cls)]
-
-    pred_RT = pred_pose_lst[0]
-    pred_RT = torch.from_numpy(pred_RT.astype(np.float32)).cuda()
-    gt_RT = RTs[0]
-    mesh_pts = bs_utils_lm.get_pointxyz_cuda(obj_id, ds_type="linemod").clone()
-    add = bs_utils_lm.cal_add_cuda(pred_RT, gt_RT, mesh_pts)
-    adds = bs_utils_lm.cal_adds_cuda(pred_RT, gt_RT, mesh_pts)
-    cls_add_dis[obj_id].append(add.item())
-    cls_adds_dis[obj_id].append(adds.item())
-    cls_add_dis[0].append(add.item())
-    cls_adds_dis[0].append(adds.item())
-
-    return (cls_add_dis, cls_adds_dis)
-
-
-def eval_one_frame_pose_lm(
-    item
-):
-    pcld, mask, ctr_of, pred_kp_of, RTs, cls_ids, use_ctr, n_cls, \
-        min_cnt, use_ctr_clus_flter, label, epoch, ibs, obj_id = item
-    pred_pose_lst = cal_frame_poses_lm(
-        pcld, mask, ctr_of, pred_kp_of, use_ctr, n_cls, use_ctr_clus_flter,
-        obj_id
-    )
-
-    cls_add_dis, cls_adds_dis = eval_metric_lm(
-        cls_ids, pred_pose_lst, RTs, mask, label, obj_id
-    )
-    return (cls_add_dis, cls_adds_dis)
+        pred_kps_lst.append(cls_kps[cls_id].squeeze().contiguous().cpu().numpy())
+    return pred_pose_lst, pred_kps_lst
 
 
 class TorchEval():
 
-    def __init__(self):
-        n_cls = 22
-        self.n_cls = 22
+    def __init__(self, ds_type):
+
+        if ds_type =='ycb':
+
+            n_cls = 22
+            self.n_cls = 22
+
+        elif ds_type=='openDR':
+            n_cls = 11
+            self.n_cls = 11
         self.cls_add_dis = [list() for i in range(n_cls)]
         self.cls_adds_dis = [list() for i in range(n_cls)]
         self.cls_add_s_dis = [list() for i in range(n_cls)]
         self.sym_cls_ids = []
 
-    def cal_auc(self):
+    def cal_auc(self, ds):
         add_auc_lst = []
         adds_auc_lst = []
         add_s_auc_lst = []
         for cls_id in range(1, self.n_cls):
-            if (cls_id) in config.ycb_sym_cls_ids:
+
+            if ds=='ycb':
+                self.sym_cls_ids = config.ycb_sym_cls_ids
+            elif ds=='openDR':
+               self.sym_cls_ids = config_od.od_sym_cls_ids
+
+            if (cls_id) in self.sym_cls_ids:
                 self.cls_add_s_dis[cls_id] = self.cls_adds_dis[cls_id]
             else:
                 self.cls_add_s_dis[cls_id] = self.cls_add_dis[cls_id]
@@ -265,7 +436,12 @@ class TorchEval():
             add_s_auc_lst.append(add_s_auc)
             if i == 0:
                 continue
-            print(cls_lst[i-1])
+
+            if ds=='ycb':
+                print(cls_lst[i-1])
+            elif ds=='openDR':
+                print(config_od.openDR_cls_lst[i-1])
+
             print("***************add:\t", add_auc)
             print("***************adds:\t", adds_auc)
             print("***************add(-s):\t", add_s_auc)
@@ -287,13 +463,25 @@ class TorchEval():
             adds_auc_lst = adds_auc_lst,
             add_s_auc_lst = add_s_auc_lst,
         )
-        sv_pth = os.path.join(
-            config.log_eval_dir,
-            'pvn3d_eval_cuda_{}_{}_{}.pkl'.format(
-                adds_auc_lst[0], add_auc_lst[0], add_s_auc_lst[0]
+
+        if ds== 'ycb':
+            sv_pth = os.path.join(
+                config.log_eval_dir,
+                'pvn3d_eval_cuda_{}_{}_{}.pkl'.format(
+                    adds_auc_lst[0], add_auc_lst[0], add_s_auc_lst[0]
+                )
             )
-        )
-        pkl.dump(sv_info, open(sv_pth, 'wb'))
+            pkl.dump(sv_info, open(sv_pth, 'wb'))
+        elif ds=='openDR':
+            sv_pth = os.path.join(
+                config_od.log_eval_dir,
+                'pvn3d_eval_cuda_{}_{}_{}.pkl'.format(
+                    adds_auc_lst[0], add_auc_lst[0], add_s_auc_lst[0]
+                )
+            )
+            pkl.dump(sv_info, open(sv_pth, 'wb'))
+
+
 
     def cal_lm_add(self, obj_id, test_occ=False):
         add_auc_lst = []
@@ -358,27 +546,37 @@ class TorchEval():
         bs_lst = [i for i in range(bs)]
         use_ctr_clus_flter_lst = [use_ctr_clus_flter for i in range(bs)]
         obj_id_lst = [obj_id for i in range(bs)]
-        if ds_type == "ycb":
+
+        if ds_type == "ycb" or ds_type=='openDR':
             data_gen = zip(
                 pclds, masks, pred_ctr_ofs, pred_kp_ofs, RTs,
                 cls_ids, use_ctr_lst, n_cls_lst, min_cnt_lst, use_ctr_clus_flter_lst,
-                labels, epoch_lst, bs_lst
+                labels, epoch_lst, bs_lst, [ds_type]
             )
         else:
+
             data_gen = zip(
                 pclds, masks, pred_ctr_ofs, pred_kp_ofs, RTs,
                 cls_ids, use_ctr_lst, n_cls_lst, min_cnt_lst, use_ctr_clus_flter_lst,
                 labels, epoch_lst, bs_lst, obj_id_lst
             )
+            #print('zip length ........................'+str(len(list(data_gen))))
         with concurrent.futures.ThreadPoolExecutor(
             max_workers= bs
         ) as executor:
-            if ds_type == "ycb":
+            if ds_type == "ycb" or ds_type=='openDR':
                 eval_func = eval_one_frame_pose
+
+
             else:
+                #print('Eval_Pose_LM_Started................................' + str(bs))
                 eval_func = eval_one_frame_pose_lm
+
+
             for res in executor.map(eval_func, data_gen):
-                cls_add_dis_lst, cls_adds_dis_lst = res
+                cls_add_dis_lst, cls_adds_dis_lst, pred_pose_lst, pred_kps_lst = res
+                #cls_add_dis_lst, cls_adds_dis_lst, pred_pose_lst = eval_one_frame_pose(data_gen)
+
                 self.cls_add_dis = self.merge_lst(
                     self.cls_add_dis, cls_add_dis_lst
                 )
@@ -386,6 +584,9 @@ class TorchEval():
                     self.cls_adds_dis, cls_adds_dis_lst
                 )
 
+
+            return pred_pose_lst,pred_kps_lst, cls_add_dis_lst, cls_adds_dis_lst
+            #return pred_pose_lst,pred_kps_lst
     def merge_lst(self, targ, src):
         for i in range(len(targ)):
             targ[i] += src[i]
