@@ -12,7 +12,7 @@ from collections import namedtuple
 from lib.pspnet import PSPNet, Modified_PSPNet
 from lib.pointnet2_utils.pointnet2_modules import PointnetFPModule, PointnetSAModuleMSG
 import torch.nn.functional as F
-
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 psp_models = {
     'resnet18': lambda: PSPNet(sizes=(1, 2, 3, 6), psp_size=512, deep_features_size=256, backend='resnet18'),
