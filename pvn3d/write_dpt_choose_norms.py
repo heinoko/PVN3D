@@ -5,6 +5,7 @@ from common import Config
 import numpy as np
 from PIL import Image
 import pcl
+from os import listdir
 
 ''' This script writes cloud, normals and sampled-points for all the training data so it does not have to be calculated from training images during the training '''
 
@@ -24,7 +25,9 @@ def get_normal( cld):
         return n
 
 ## This script is only for openDR dataset ##
-for i in range(2304, 3071):#2304):
+
+for i,_ in enumerate(listdir('./datasets/openDR/openDR_dataset/depth')):
+#for i in range(2304, 3071):#2304):
 
     with Image.open('./datasets/openDR/openDR_dataset/depth/'+str(i)+'.png') as dpt_im:
         dpt = np.array(dpt_im)
@@ -40,7 +43,6 @@ for i in range(2304, 3071):#2304):
     cld, choose = bs_utils.dpt_2_cld(dpt, 1, cfg.intrinsic_matrix['openDR'])
     normals = get_normal(cld)
     all_arr = np.concatenate( (cld, choose.reshape(choose.shape[0],1), normals[:,:3]) , axis = 1)
-)
 
     #Write cloud, choose-filter and normals in npy files for retrieval in dataloader
     ''' This is to prevent repeated calculations while Batch-loading during training,
