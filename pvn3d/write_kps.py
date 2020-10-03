@@ -37,21 +37,32 @@ args = parser.parse_args()
 dataset_folder = {'openDR':'openDR_dataset', 'linemod':'Linemod_preprocessed', 'ycb':'ycb_dataset'}
 kps_folder = {'openDR':'openDR_object_kps', 'linemod':'lm_object_kps', 'ycb':'ycb_object_kps'}
 
-pcd = pcl.load('./datasets/'+args.dataset+'/'+dataset_folder[args.dataset]+'/models/obj_'+str(args.cls_id)+'.pcd')
-pts = np.array(pcd)
-fps_idx = bs_utl.farthestPointSampling(pts, args.n_kps)
+
+cls_ids = args.cls_id
+
+if args.dataset == 'openDR':
+	cls_ids = [1,2,3,4,5,6,7,8,9,10]
 
 
 
-colors = 100*np.ones((pts.shape[0],3))
-colors[fps_idx] = np.array([255, 0 , 0])
+for cls_id in cls_ids:
+	
+	print('Writing kps for class '+str(cls_id))
+	pcd = pcl.load('./datasets/'+args.dataset+'/'+dataset_folder[args.dataset]+'/models/obj_'+str(cls_id)+'.pcd')
+	pts = np.array(pcd)
+	fps_idx = bs_utl.farthestPointSampling(pts, args.n_kps)
 
-colors2 = 100*np.ones((pts[fps_idx].shape[0],3))
-#colors[:] = np.array([255, 0 , 0])
-colors = colors.tolist()
 
-#cloud_kps = pch.XYZ_to_XYZRGB(pts[fps_idx], colors2)
-cloud_kps = pch.XYZ_to_XYZRGB(pts, colors)
 
-np.savetxt('./PVN3D/pvn3d/datasets/'+args.dataset+'/'+kps_folder[args.dataset]+'/'+str(args.cls_id)+'/farthest_'+str(args.n_kps)+'.txt', pts[fps_idx])	#Keypoints
-pcd = pcl.save(cloud_kps,'./PVN3D/pvn3d/datasets/'+args.dataset+'/'+kps_folder[args.dataset]+'/'+str(args.cls_id)+'/farthest_'+str(args.n_kps)+'.pcd')	#PCD file with keypoints added to the actual cloud
+	colors = 100*np.ones((pts.shape[0],3))
+	colors[fps_idx] = np.array([255, 0 , 0])
+
+	colors2 = 100*np.ones((pts[fps_idx].shape[0],3))
+	#colors[:] = np.array([255, 0 , 0])
+	colors = colors.tolist()
+
+	#cloud_kps = pch.XYZ_to_XYZRGB(pts[fps_idx], colors2)
+	cloud_kps = pch.XYZ_to_XYZRGB(pts, colors)
+
+	np.savetxt('./datasets/'+args.dataset+'/'+kps_folder[args.dataset]+'/'+str(cls_id)+'/farthest_'+str(args.n_kps)+'.txt', pts[fps_idx])	#Keypoints
+	pcd = pcl.save(cloud_kps,'./datasets/'+args.dataset+'/'+kps_folder[args.dataset]+'/'+str(cls_id)+'/farthest_'+str(args.n_kps)+'.pcd')	#PCD file with keypoints added to the actual cloud
