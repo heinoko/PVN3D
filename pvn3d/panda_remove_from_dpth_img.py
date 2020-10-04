@@ -115,7 +115,7 @@ class Panda_pts(object):
 
             ## Mesh Transformation of each link to camera coordinates
             link_in_cam = np.dot(np.linalg.inv(cam_in_world), link_in_world  )
-            link_pts = np.asarray(o3d.io.read_point_cloud('/home/ahmad3/catkin_ws/src/franka_ros/franka_description/meshes/visual/'+ i +'.pcd').points)
+            link_pts = np.asarray(o3d.io.read_point_cloud('~/panda_sim_ws/src/franka_ros/franka_description/meshes/visual/'+ i +'.pcd').points)
             link_pts = np.hstack(( link_pts, np.ones((link_pts.shape[0], 1)) ))
             link_pts_tf = np.matmul(link_in_cam, link_pts.T ).T
             panda_points = np.vstack(( panda_points , link_pts_tf ))

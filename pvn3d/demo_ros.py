@@ -220,15 +220,15 @@ class PVN3D_ROS(object):
         self.corners = {}
         if args.dataset == 'linemod':
 
-            self.mesh['1'] = np.array(pcl.load('/home/ahmad3/PVN3D/pvn3d/datasets/linemod/Linemod_preprocessed/models/obj_'+str(config.lm_obj_dict[args.cls])+'.ply'), dtype= np.float32)
-            self.corners['1'] = np.loadtxt('/home/ahmad3/PVN3D/pvn3d/datasets/linemod/lm_obj_kps/'+str(args.cls)+'/corners.txt')
+            self.mesh['1'] = np.array(pcl.load('./PVN3D/pvn3d/datasets/linemod/Linemod_preprocessed/models/obj_'+str(config.lm_obj_dict[args.cls])+'.ply'), dtype= np.float32)
+            self.corners['1'] = np.loadtxt('./PVN3D/pvn3d/datasets/linemod/lm_obj_kps/'+str(args.cls)+'/corners.txt')
             self.mesh_pts = np.array(mesh, dtype= np.float32)
 
         else: # openDR case
 
             for i in range(1, 11):
-                self.mesh[str(i)] = np.array(pcl.load('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/models/obj_'+str(args.cls)+'.ply'), dtype= np.float32)
-                self.corners[str(i)] = np.loadtxt('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_object_kps/'+str(i)+'/corners.txt')
+                self.mesh[str(i)] = np.array(pcl.load('./PVN3D/pvn3d/datasets/openDR/openDR_dataset/models/obj_'+str(args.cls)+'.ply'), dtype= np.float32)
+                self.corners[str(i)] = np.loadtxt('./PVN3D/pvn3d/datasets/openDR/openDR_object_kps/'+str(i)+'/corners.txt')
 
         cam2optical = R.from_euler('zyx',[1.57, 0, 1.57])
         cam2optical = cam2optical.as_dcm()

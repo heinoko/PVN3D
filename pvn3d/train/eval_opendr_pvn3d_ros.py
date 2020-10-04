@@ -567,7 +567,7 @@ if __name__ == "__main__":
     cam2optical = cam2optical.as_dcm()
     corners_t = np.zeros((10,8,3))
     for i in range(0,10):
-        corners = np.loadtxt('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_object_kps/'+str(i+1)+'/corners.txt')
+        corners = np.loadtxt('./PVN3D/pvn3d/datasets/openDR/openDR_object_kps/'+str(i+1)+'/corners.txt')
         corners_t[i] = np.matmul(cam2optical, corners.transpose()).transpose()
         corners_t[i] = np.concatenate(( corners_t[i,:,2].reshape(8,1) , -corners_t[i,:, 0].reshape(8,1), -corners_t[i,:, 1].reshape(8,1) ), axis=1)
     '''

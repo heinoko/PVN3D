@@ -32,8 +32,8 @@ br = tf.TransformBroadcaster()
 
 all_meshes = {}
 for i in range(0,10):
-    #this_mesh = pcl.load('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/models/obj_'+str(i+1)+'.ply')
-    this_mesh = o3d.io.read_point_cloud('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/models/obj_'+str(i+1)+'.ply')
+    #this_mesh = pcl.load('./openDR_dataset/models/obj_'+str(i+1)+'.ply')
+    this_mesh = o3d.io.read_point_cloud('./openDR_dataset/models/obj_'+str(i+1)+'.ply')
     all_meshes['obj_'+str(i+1)] = np.asarray(this_mesh.points)#, dtype= np.float32)
 
 cam2optical = R.from_euler('zyx',[1.57, 0, 1.57])
@@ -150,7 +150,7 @@ for dist in np.arange(0.65,1.05, 0.125):
                             #cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 
                             if sample_num > 0:  #No point checking for the sample 0
-                                previous_im = cv2.imread('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/rgb/'+str(sample_num-1)+'.png', -1)
+                                previous_im = cv2.imread('./openDR_dataset/rgb/'+str(sample_num-1)+'.png', -1)
                                 rgb_duplicate = abs(np.mean(cv_image - previous_im)) < 2 # Mean of all pixels shouldn't be this small if it's two different images
                                 print('rgb diff: '+str(np.mean(cv_image - previous_im)))
                                 print(rgb_duplicate)
@@ -168,7 +168,7 @@ for dist in np.arange(0.65,1.05, 0.125):
                             depthImg_msg = rospy.wait_for_message('/kinect1/depth/image_raw', Image, timeout = 3 )
                             cv_depthImage = bridge.imgmsg_to_cv2(depthImg_msg, desired_encoding='passthrough')
                             if sample_num > 0:
-                                previous_im = cv2.imread('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/depth/'+str(sample_num-1)+'.png', -1)
+                                previous_im = cv2.imread('./openDR_dataset/depth/'+str(sample_num-1)+'.png', -1)
                                 depth_duplicate = abs(np.nanmean(cv_depthImage - previous_im))< 200  # Mean of all pixels shouldn't be this small if it's two different images
                                 print('depth diff: '+str(np.nanmean(cv_depthImage - previous_im)))# - previous_im)))
                                 print(depth_duplicate)
@@ -229,7 +229,7 @@ for dist in np.arange(0.65,1.05, 0.125):
                     obj_world_T = np.vstack(( obj_world_T, [0,0,0,1] ))
                     obj_cam_T[:, :, i] = np.dot( np.linalg.inv(cam_world_T), obj_world_T )#[:3,:]
                 gt_dict = { 'poses':obj_cam_T[:3,:,:] }
-                sio.savemat('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/meta/'+str(sample_num)+'-meta.mat',gt_dict)
+                sio.savemat('./openDR_dataset/meta/'+str(sample_num)+'-meta.mat',gt_dict)
 
                 # Kinect in gazebo has it's depth registered to color camera so intrinsics...
                 # of color cam can be used for projection
@@ -355,11 +355,10 @@ for dist in np.arange(0.65,1.05, 0.125):
 
                 # Save the images
                 print('Writing Images')
-                cv2.imwrite('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/rgb/'+str(sample_num)+'.png', cv_image)
-                cv2.imwrite('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/depth/'+str(sample_num)+'.png',cv_depthImage)
-                cv2.imwrite('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/mask/'+str(sample_num)+'.png',obj_mask)
-                #cv2.imwrite('/home/ahmad3/PVN3D/pvn3d/datasets/linemod/Linemod_preprocessed/data/16/diff/'+str(sample_num)+'.png',diff_img)
-                #cv2.imwrite('/home/ahmad3/PVN3D/pvn3d/datasets/linemod/Linemod_preprocessed/data/16/thresh/'+str(sample_num)+'.png',bin_img)
+                cv2.imwrite('./openDR_dataset/rgb/'+str(sample_num)+'.png', cv_image)
+                cv2.imwrite('./openDR_dataset/depth/'+str(sample_num)+'.png',cv_depthImage)
+                cv2.imwrite('./openDR_dataset/mask/'+str(sample_num)+'.png',obj_mask)
+
 
                 # Publish transforms to check poses in rviz
 
