@@ -49,8 +49,8 @@ parser.add_argument(
     "-checkpoint", type=str, default=None, help="Checkpoint to eval"
 )
 parser.add_argument(
-    "-dataset", type=str, default="linemod",
-    help="Target dataset, ycb or linemod. (linemod as default)."
+    "-dataset", type=str, default="openDR",
+    help="Target dataset, ycb, linemod or opendr. (opendr as default)."
 )
 parser.add_argument(
     "-cls", type=str, default="ape",
@@ -220,15 +220,15 @@ class PVN3D_ROS(object):
         self.corners = {}
         if args.dataset == 'linemod':
 
-            self.mesh['1'] = np.array(pcl.load('./PVN3D/pvn3d/datasets/linemod/Linemod_preprocessed/models/obj_'+str(config.lm_obj_dict[args.cls])+'.ply'), dtype= np.float32)
-            self.corners['1'] = np.loadtxt('./PVN3D/pvn3d/datasets/linemod/lm_obj_kps/'+str(args.cls)+'/corners.txt')
+            self.mesh['1'] = pcl.load('/home/ahmad3/PVN3D/pvn3d/datasets/linemod/Linemod_preprocessed/models/obj_'+str(config.lm_obj_dict[args.cls])+'.ply')
+            self.corners['1'] = np.loadtxt('/home/ahmad3/PVN3D/pvn3d/datasets/linemod/lm_obj_kps/'+str(args.cls)+'/corners.txt')
             self.mesh_pts = np.array(mesh, dtype= np.float32)
 
         else: # openDR case
 
             for i in range(1, 11):
-                self.mesh[str(i)] = np.array(pcl.load('./PVN3D/pvn3d/datasets/openDR/openDR_dataset/models/obj_'+str(args.cls)+'.ply'), dtype= np.float32)
-                self.corners[str(i)] = np.loadtxt('./PVN3D/pvn3d/datasets/openDR/openDR_object_kps/'+str(i)+'/corners.txt')
+                self.mesh[str(i)] = pcl.load('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_dataset/models/obj_'+str(i)+'.ply')
+                self.corners[str(i)] = np.loadtxt('/home/ahmad3/PVN3D/pvn3d/datasets/openDR/openDR_object_kps/'+str(i)+'/corners.txt')
 
         cam2optical = R.from_euler('zyx',[1.57, 0, 1.57])
         cam2optical = cam2optical.as_dcm()
@@ -237,12 +237,14 @@ class PVN3D_ROS(object):
             ''' Voxel grid filtering for Mesh points '''
             sor = self.mesh[i].make_voxel_grid_filter()
             sor.set_leaf_size(0.02, 0.02, 0.02)
-            self.mesh[i] = sor.filter()
+            self.mesh[i] = np.array(sor.filter())
 
             ''' Mesh & Corners transformation '''
             self.mesh[i] = np.matmul(cam2optical, self.mesh[i].transpose()).transpose()
             self.corners[i]  = np.matmul(cam2optical, self.corners[i].transpose()).transpose()
-            n = mesh_pts_t.shape[0]
+            n = self.mesh[i].shape[0]
+
+            #transformation optical to camera link
             self.mesh[i] = np.concatenate(( self.mesh[i][:,2].reshape(n,1) , -self.mesh[i][:, 0].reshape(n,1), -self.mesh[i][:, 1].reshape(n,1) ), axis=1)
             self.corners[i] = np.concatenate(( self.corners[i][:,2].reshape(8,1) , -self.corners[i][:, 0].reshape(8,1), -self.corners[i][:, 1].reshape(8,1) ), axis=1)
 
