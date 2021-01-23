@@ -661,6 +661,9 @@ class Basic_Utils():
             elif ds_type == 'openDR':
                 kps = np.loadtxt(self.config.openDR_kps_dir+'/{}/{}.txt'.format(cls+1,kp_type), dtype=np.float32)
                 return kps.copy()
+            elif ds_type == 'CrankSlider':
+                kps = np.loadtxt(self.config.CrankSlider_kps_dir+'/{}/{}.txt'.format(cls+1,kp_type), dtype=np.float32)
+                return kps.copy()
             else:
                 cls = self.config.lm_id2obj_dict[cls]
         if ds_type == "ycb":
@@ -687,7 +690,7 @@ class Basic_Utils():
         if type(cls) is int:
             if ds_type == 'ycb':
                 cls = self.ycb_cls_lst[cls - 1]
-            elif ds_type == 'openDR':
+            elif ds_type == 'openDR' or ds_type == 'CrankSlider':
                 pass
             else:
                 cls = self.config.lm_id2obj_dict[cls]
@@ -708,6 +711,12 @@ class Basic_Utils():
             cors = np.loadtxt(cor_pattern.format(cls+1), dtype=np.float32)
             ctr = cors.mean(0)
 
+        elif ds_type == 'CrankSlider':
+            cor_pattern = os.path.join(
+                self.config.CrankSlider_kps_dir, '{}/corners.txt'.format(cls+1),
+            )
+            cors = np.loadtxt(cor_pattern.format(cls+1), dtype=np.float32)
+            ctr = cors.mean(0)
 
         else:
             if cls in self.lm_cls_ctr_dict.keys():

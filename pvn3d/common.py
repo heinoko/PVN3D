@@ -85,6 +85,7 @@ class Config:
                 'datasets/ycb/test_val_data_pts{}.pkl'.format(self.n_sample_points),
             )
 
+            #
         elif self.dataset_name == 'openDR':
             
             self.n_objects = 10 + 1
@@ -127,8 +128,43 @@ class Config:
                 self.exp_dir,
                 'datasets/openDR/test_val_data_pts{}.pkl'.format(self.n_sample_points),
             )
-            
-        else: # linemod
+
+        elif self.dataset_name == 'CrankSlider':
+
+            print("Crankslider on bitch!")
+            self.n_objects = 8 + 1
+            self.n_classes = 8 + 1
+            self.CrankSlider_cls_lst_p = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/CrankSlider/dataset_config/classes.txt'
+                )
+            ) 
+            self.CrankSlider_root = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/CrankSlider/CrankSlider_dataset'
+                )
+            )
+
+            self.CrankSlider_kps_dir = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/CrankSlider/CrankSlider_object_kps'
+                )
+            )
+            CrankSlider_r_lst_p = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/CrankSlider/dataset_config/radius.txt'
+                )
+            )
+            self.use_preprocess = True
+            self.CrankSlider_r_lst = list(np.loadtxt(CrankSlider_r_lst_p))
+            self.CrankSlider_cls_lst = self.read_lines(self.CrankSlider_cls_lst_p)
+            self.CrankSlider_sym_cls_ids = [1, 2, 3, 5]
+            self.CrankSlider_test_pkl_p = os.path.join(
+                self.exp_dir,
+                'datasets/CrankSlider/test_val_data_pts{}.pkl'.format(self.n_sample_points)
+            )
+
+        else:
             self.n_objects = 1 + 1
             self.n_classes = 1 + 1
             self.lm_cls_lst = [
@@ -198,6 +234,9 @@ class Config:
                                 [0.      , 1078.189  , 279.6921],
                                 [0.      , 0.        , 1.0]], np.float32),
             'openDR': np.array([[554.25469119, 0.,         320.5],
+                                [0.,        554.25469119,  240.5],
+                                [0.,        0.,         1.]]),
+            'CrankSlider': np.array([[554.25469119, 0.,         320.5],
                                 [0.,        554.25469119,  240.5],
                                 [0.,        0.,         1.]])
         }

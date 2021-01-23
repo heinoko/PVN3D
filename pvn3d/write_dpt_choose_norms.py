@@ -9,7 +9,7 @@ from os import listdir
 
 ''' This script writes cloud, normals and sampled-points for all the training data so it does not have to be calculated from training images during the training '''
 
-cfg = Config(dataset_name='openDR')
+cfg = Config(dataset_name='CrankSlider')
 bs_utils = Basic_Utils(cfg)
 
 def get_normal( cld):
@@ -26,10 +26,10 @@ def get_normal( cld):
 
 ## This script is only for openDR dataset ##
 
-for i,_ in enumerate(listdir('./datasets/openDR/openDR_dataset/depth')):
+for i,_ in enumerate(listdir('./datasets/CrankSlider/CrankSlider_dataset/depth')):
 #for i in range(2304, 3071):#2304):
 
-    with Image.open('./datasets/openDR/openDR_dataset/depth/'+str(i)+'.png') as dpt_im:
+    with Image.open('./datasets/CrankSlider/CrankSlider_dataset/depth/'+str(i)+'.png') as dpt_im:
         dpt = np.array(dpt_im)
         print(dpt.dtype)
         print(dpt.max())
@@ -40,7 +40,7 @@ for i,_ in enumerate(listdir('./datasets/openDR/openDR_dataset/depth')):
     print(dpt.max())
 
     #Back-projection util function
-    cld, choose = bs_utils.dpt_2_cld(dpt, 1, cfg.intrinsic_matrix['openDR'])
+    cld, choose = bs_utils.dpt_2_cld(dpt, 1, cfg.intrinsic_matrix['CrankSlider'])
     normals = get_normal(cld)
     all_arr = np.concatenate( (cld, choose.reshape(choose.shape[0],1), normals[:,:3]) , axis = 1)
 
@@ -48,7 +48,7 @@ for i,_ in enumerate(listdir('./datasets/openDR/openDR_dataset/depth')):
     ''' This is to prevent repeated calculations while Batch-loading during training,
             as it takes a considerable amount of time for each batch. '''
 
-    with open('./datasets/openDR/openDR_dataset/'+str(i)+'.npy', 'wb') as f:
+    with open('./datasets/CrankSlider/CrankSlider_dataset/'+str(i)+'.npy', 'wb') as f:
 
         print('Writing file '+str(i))
         np.save(f, all_arr)

@@ -29,19 +29,21 @@ parser.add_argument(
 parser.add_argument(
     "-n_kps",
     type=int ,
-    default=8,
+    default=16,
     help="No. of required keypoints per class",
 )
 args = parser.parse_args()
 
-dataset_folder = {'openDR':'openDR_dataset', 'linemod':'Linemod_preprocessed', 'ycb':'ycb_dataset'}
-kps_folder = {'openDR':'openDR_object_kps', 'linemod':'lm_object_kps', 'ycb':'ycb_object_kps'}
+dataset_folder = {'openDR':'openDR_dataset', 'linemod':'Linemod_preprocessed', 'ycb':'ycb_dataset', 'CrankSlider': 'CrankSlider_dataset'}
+kps_folder = {'openDR':'openDR_object_kps', 'linemod':'lm_object_kps', 'ycb':'ycb_object_kps', 'CrankSlider': 'CrankSlider_object_kps'}
 
 
 cls_ids = args.cls_id
 
 if args.dataset == 'openDR':
 	cls_ids = [1,2,3,4,5,6,7,8,9,10]
+elif args.dataset == 'CrankSlider':
+	cls_ids = [1,2,3,4,5,6,7,8]
 
 
 
