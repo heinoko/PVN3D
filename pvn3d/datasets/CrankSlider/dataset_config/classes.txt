@@ -1,0 +1,8 @@
+Bearing
+Cam
+Connecting-rod-Lower
+Connecting-rod-Upper
+Piston
+Piston-Pin
+Seal1
+Seal2
