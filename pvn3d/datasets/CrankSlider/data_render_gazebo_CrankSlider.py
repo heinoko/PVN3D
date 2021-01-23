@@ -88,7 +88,11 @@ def cv_im_fill(bin_im):
 
     return im_out
 
+<<<<<<< HEAD
 sample_num = 3301   # set this to 0 at first run
+=======
+sample_num = 2917   # set this to 0 at first run
+>>>>>>> 66dafd92880b60688e27c8d4e1061ce3ae131d4c
 gt_yaml_dict = {}
 cam_info_msg = rospy.wait_for_message('kinect1/color/camera_info', CameraInfo, timeout = 2)
 
@@ -327,7 +331,11 @@ for dist in np.arange(0.55,1.05,0.125):
                     for point in pixels:   # Loops pixel.shape[0] times
                         #print point
                         this_mask[point[1]-1, point[0]-1] = 255 #1.05*np.ceil(255*(i+1)/10)   # Points with projected x,y coordinates are mapped to unique grey label
+<<<<<<< HEAD
 		    	
+=======
+
+>>>>>>> 66dafd92880b60688e27c8d4e1061ce3ae131d4c
                     # Fill gaps in the binary image - Gaps are inevitable when backprojecting pointclouds
                     this_mask = cv_im_fill(this_mask)
 
@@ -335,7 +343,11 @@ for dist in np.arange(0.55,1.05,0.125):
                     this_mask[this_mask.nonzero()] = 1.05*np.ceil(255*(i+1)/8)
                     obj_mask[this_mask.nonzero()] = 0
                     obj_mask += this_mask
+<<<<<<< HEAD
 		   
+=======
+
+>>>>>>> 66dafd92880b60688e27c8d4e1061ce3ae131d4c
                     print('Total rendering time: '+str(time.time()*1000.0-start)+' ms per class')
 
 
@@ -371,7 +383,11 @@ for dist in np.arange(0.55,1.05,0.125):
                     o2c_or = obj_cam_or.as_quat()
                     br.sendTransform((obj_cam_T[0,3,i], obj_cam_T[1,3,i] , obj_cam_T[2,3,i]),(o2c_or[0], o2c_or[1], o2c_or[2], o2c_or[3]),rospy.Time.now(), 'object'+str(i),"camera_link")
 
+<<<<<<< HEAD
                 print str(cv_image.dtype)+' '+ str(cv_image.shape) + ' ' + str(cv_image.max())
+=======
+                #print str(cv_image.dtype)+' '+ str(cv_image.shape) + ' ' + str(cv_image.max())
+>>>>>>> 66dafd92880b60688e27c8d4e1061ce3ae131d4c
                 #print str(cv_depthImage.dtype)+' '+ str(cv_depthImage.shape) + ' ' + str(np.nanmax(cv_depthImage))
 
                 sample_num += 1
