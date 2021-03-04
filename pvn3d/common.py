@@ -41,7 +41,7 @@ class Config:
         self.test_mini_batch_size = 1
 
         self.n_sample_points = 8192 + 4096
-        self.n_keypoints = 16
+        self.n_keypoints = 8
         self.n_min_points = 400
 
         self.noise_trans = 0.05 # range of the random noise of translation added to the training data
@@ -131,7 +131,7 @@ class Config:
 
         elif self.dataset_name == 'CrankSlider':
 
-            print("Crankslider on bitch!")
+            print("inside CrankSlider <<<" + str(dataset_name))
             self.n_objects = 8 + 1
             self.n_classes = 8 + 1
             self.CrankSlider_cls_lst_p = os.path.abspath(
@@ -165,6 +165,7 @@ class Config:
             )
 
         else:
+            print("inside linemode <<<" + str(dataset_name))
             self.n_objects = 1 + 1
             self.n_classes = 1 + 1
             self.lm_cls_lst = [

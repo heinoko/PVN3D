@@ -44,6 +44,7 @@ def eval_one_frame_pose(
     pcld, mask, ctr_of, pred_kp_of, RTs, cls_ids, use_ctr, n_cls, \
         min_cnt, use_ctr_clus_flter, label, epoch, ibs, ds = item
     ds = str(ds)
+    print("we are looking at ds : ", str(ds))
     n_kps, n_pts, _ = pred_kp_of.size()
     pred_ctr = pcld - ctr_of[0]
     pred_kp = pcld.view(1, n_pts, 3).repeat(n_kps, 1, 1) - pred_kp_of
@@ -77,10 +78,8 @@ def eval_one_frame_pose(
                break
            if ds =='ycb':
                min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
-           elif ds == 'CrankSlider':
-               min_msk = min_dis < config_cs.CrankSlider_r_lst[cls_id-1] * 0.8
            else:
-               min_msk = min_dis < config_od.openDR_r_lst[cls_id-1] * 0.8
+               min_msk = min_dis < config_cs.CrankSlider_r_lst[cls_id-1] * 0.8          #Changed to CrankSlider
            update_msk = (mask > 0) & (msk_closest_ctr == cls_id) & min_msk
            new_msk[update_msk] = msk_closest_ctr[update_msk]
        mask = new_msk
@@ -109,20 +108,16 @@ def eval_one_frame_pose(
             in_pred_kp = cls_voted_kps
         for ikp, kps3d in enumerate(in_pred_kp):
             cls_kps[cls_id, ikp, :], _ = ms.fit(kps3d)
+
         if ds =='ycb':
             mesh_kps = bs_utils.get_kps(cls_lst[cls_id-1])
             if use_ctr:
                  mesh_ctr = bs_utils.get_ctr(cls_lst[cls_id-1]).reshape(1,3)
                  mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
-        elif ds == 'CrankSlider':
-            mesh_kps = bs_utils_cs.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_cs.n_keypoints), ds_type='CrankSlider')
+        else:
+            mesh_kps = bs_utils_cs.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_cs.n_keypoints), ds_type='CrankSlider')#changed to CrankSlider
             if use_ctr:
                  mesh_ctr = bs_utils_cs.get_ctr(int(cls_id-1), ds_type='CrankSlider').reshape(1,3)
-                 mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)            
-        else:
-            mesh_kps = bs_utils_od.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_od.n_keypoints), ds_type='openDR')
-            if use_ctr:
-                 mesh_ctr = bs_utils_od.get_ctr(int(cls_id-1), ds_type='openDR').reshape(1,3)
                  mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
         mesh_kps = torch.from_numpy(mesh_kps.astype(np.float32)).cuda()
         pred_RT = bs_utils.best_fit_transform(
@@ -175,11 +170,9 @@ def cal_frame_poses(
                    break
                if ds =='ycb':
                    min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
-               elif ds == 'CrankSlider':
-                    min_msk = min_dis < config.CrankSlider_r_lst[cls_id-1] * 0.8
                else:
-                   min_msk = min_dis < config_od.openDR_r_lst[cls_id-1] * 0.8
-               min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
+                   min_msk = min_dis < config_cs.CrankSlider_r_lst[cls_id-1] * 0.8   #Changed to CrankSlider
+               #min_msk = min_dis < config.ycb_r_lst[cls_id-1] * 0.8
                update_msk = (mask > 0) & (msk_closest_ctr == cls_id) & min_msk
                new_msk[update_msk] = msk_closest_ctr[update_msk]
            mask = new_msk
@@ -214,15 +207,11 @@ def cal_frame_poses(
                 if use_ctr:
                     mesh_ctr = bs_utils.get_ctr(cls_lst[cls_id-1]).reshape(1,3)
                     mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
-            elif ds == 'CrankSlider':
-                mesh_kps = bs_utils_cs.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_od.n_keypoints), ds_type='CrankSlider')
-                if use_ctr:
-                    mesh_ctr = bs_utils_cs.get_ctr(int(cls_id-1), ds_type='CrankSlider').reshape(1,3)
-                    mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
+
             else:
-                mesh_kps = bs_utils_od.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_od.n_keypoints), ds_type='openDR')
+                mesh_kps = bs_utils_od.get_kps(int(cls_id-1), kp_type='farthest_'+str(config_cs.n_keypoints), ds_type='CrankSlider') #changed
                 if use_ctr:
-                     mesh_ctr = bs_utils_od.get_ctr(int(cls_id-1), ds_type='openDR').reshape(1,3)
+                     mesh_ctr = bs_utils_od.get_ctr(int(cls_id-1), ds_type='CrankSlider').reshape(1,3)
                      mesh_kps = np.concatenate((mesh_kps, mesh_ctr), axis=0)
 
 
@@ -434,7 +423,7 @@ class TorchEval():
         self.cls_add_s_dis = [list() for i in range(n_cls)]
         self.sym_cls_ids = []
 
-    def cal_auc(self, ds):
+    def cal_auc(self, ds='CrankSlider'):
         add_auc_lst = []
         adds_auc_lst = []
         add_s_auc_lst = []
@@ -564,9 +553,9 @@ class TorchEval():
 
     def eval_pose_parallel(
         self, pclds, rgbs, masks, pred_ctr_ofs, gt_ctr_ofs, labels, cnt,
-        cls_ids, RTs, pred_kp_ofs, min_cnt=20, merge_clus=False, bbox=False, ds='YCB',
+        cls_ids, RTs, pred_kp_ofs, min_cnt=20, merge_clus=False, bbox=False, ds='CrankSlider',
         cls_type=None, use_p2d = False, vote_type=VotingType.Farthest,
-        use_ctr_clus_flter=True, use_ctr=True, ds_type="ycb", obj_id=0
+        use_ctr_clus_flter=True, use_ctr=True, ds_type="CrankSlider", obj_id=0
     ):
         bs, n_kps, n_pts, c = pred_kp_ofs.size()
         masks = masks.long()
@@ -597,6 +586,7 @@ class TorchEval():
             max_workers= bs
         ) as executor:
             if ds_type == "ycb" or ds_type=='openDR' or ds_type =='CrankSlider':
+                print("Given ds_type: ", str(ds_type))
                 eval_func = eval_one_frame_pose
 
 

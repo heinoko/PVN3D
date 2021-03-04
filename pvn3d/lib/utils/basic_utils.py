@@ -612,6 +612,15 @@ class Basic_Utils():
             self.lm_cls_ptsxyz_dict[cls] = pointxyz
             return pointxyz
 
+        elif ds_type == 'CrankSlider':
+            ptxyz_pth = os.path.join('/home/ahmad3/PVN3D/pvn3d/datasets/CrankSlider/CrankSlider_dataset/models', 'obj_'+str(cls)+'.ply')
+            #pointxyz = self.ply_vtx(ptxyz_pth)
+            pointxyz = np.asarray(pcl.load(ptxyz_pth))
+            dellist = [j for j in range(0, len(pointxyz))]
+            dellist = random.sample(dellist, len(pointxyz) - 2000)
+            pointxyz = np.delete(pointxyz, dellist, axis=0)
+            self.lm_cls_ptsxyz_dict[cls] = pointxyz
+            return pointxyz
 
         else:
             ptxyz_pth = os.path.join(
@@ -636,7 +645,7 @@ class Basic_Utils():
             self.ycb_cls_ptsxyz_cuda_dict[cls] = ptsxyz_cu
             return ptsxyz_cu.clone()
 
-        elif ds_type == "openDR":
+        elif ds_type == "openDR" or ds_type == "CrankSlider" :
 
             ptsxyz = self.get_pointxyz(cls, ds_type)
             ptsxyz_cu = torch.from_numpy(ptsxyz.astype(np.float32)).cuda()
@@ -652,10 +661,8 @@ class Basic_Utils():
             return ptsxyz_cu.clone()
 
     def get_kps(
-        self, cls, kp_type='farthest', ds_type='ycb', kp_pth=None
+        self, cls, kp_type='farthest', ds_type='ycb'
     ):
-        if kp_pth:
-            return np.loadtxt(kp_pth)
         if type(cls) is int:
             if ds_type == 'ycb':
                 cls = self.ycb_cls_lst[cls - 1]
@@ -688,9 +695,7 @@ class Basic_Utils():
             self.lm_cls_kps_dict[cls] = kps
         return kps.copy()
 
-    def get_ctr(self, cls, ds_type='ycb', ctr_pth=None):
-        if ctr_pth:
-            return np.loadtxt(ctr_pth)
+    def get_ctr(self, cls, ds_type):
         if type(cls) is int:
             if ds_type == 'ycb':
                 cls = self.ycb_cls_lst[cls - 1]
@@ -747,7 +752,7 @@ class Basic_Utils():
     ):
         if ds_type == 'ycb':
             cls_nm = self.ycb_cls_lst[cls_id-1]
-        elif ds_type== 'openDR':
+        elif ds_type== 'openDR' or ds_type== 'CrankSlider' :
             cls_nm = cls_id
         else:
             cls_nm = self.lm_cls_lst[cls_id-1]

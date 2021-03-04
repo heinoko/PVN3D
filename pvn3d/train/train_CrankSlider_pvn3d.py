@@ -37,6 +37,7 @@ rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (30000, rlimit[1]))
 
 config = Config(dataset_name='CrankSlider')
+print("N of claases :" + str(config.n_classes))
 
 parser = argparse.ArgumentParser(description="Arg parser")
 parser.add_argument(
@@ -490,7 +491,7 @@ if __name__ == "__main__":
     model_fn = model_fn_decorator(
         nn.DataParallel(FocalLoss(gamma=2)),
         nn.DataParallel(OFLoss()),
-        args.test,
+        args.test, # remove this when training? no
     )
 
     viz = CmdLineViz()
