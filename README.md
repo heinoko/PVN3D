@@ -9,12 +9,34 @@ We optimized and applied PVN3D for a robotic manipulation contest [OCRTOC (IROS 
 ## Installation
 - The following setting is for pytorch 1.0.1. For pytorch 1.5 & cuda 10, switch to branch [pytorch-1.5](https://github.com/ethnhe/PVN3D/tree/pytorch-1.5).
 - Install CUDA9.0
+- Install anaconda and create a virtualenv with python 3.6
+- ```shell
+  conda create -n pvn3d python=3.6
+  conda activate pvn3d3
+  ```
 - Set up python environment from requirement.txt:
   ```shell
   pip3 install -r requirement.txt 
   ```
 - Install tkinter through ``sudo apt install python3-tk``
 - Install [python-pcl](https://github.com/strawlab/python-pcl).
+  *Install sirokujira version to sicumvent a bug
+  ```shell
+  conda config --add channels conda-forge
+  conda install -c sirokujira python-pcl
+  conda install -c jithinpr2 gtk3
+  ```
+  
+  python >> import pcl produces an error
+  Follow the solution given here
+  https://github.com/strawlab/python-pcl/issues/285cd 
+  /scratch/project_2003042/miniconda3/envs/pvn3d/lib (changethis path to yours)
+  ```shell
+  ln -s libboost_system.so.1.64.0 libboost_system.so.1.54.0
+  ln -s libboost_filesystem.so.1.64.0 libboost_filesystem.so.1.54.0
+  ln -s libboost_thread.so.1.64.0 libboost_thread.so.1.54.0
+  ln -s libboost_iostreams.so.1.64.0 libboost_iostreams.so.1.54.0
+  ```
 - Install PointNet++ (refer from [Pointnet2_PyTorch](https://github.com/erikwijmans/Pointnet2_PyTorch)):
   ```shell
   python3 setup.py build_ext
@@ -112,15 +134,26 @@ We optimized and applied PVN3D for a robotic manipulation contest [OCRTOC (IROS 
   python3 setup.py build_ext --inplace
 ```
 - Generate information of objects, eg. radius, 3D keypoints, etc. in your datasets with the ``gen_obj_info.py`` script:
+- *write_kps.py write_corners and write_kps_without_rospy.py created to do this:
 ```
   cd ../
   python3 gen_obj_info.py --help
+```
+```
+  python write_dpt_choose_norms.py 
+  python write_kps.py -dataset openDR -n_kps <as much you want> 
+  python write_corners.py -dataset openDR
 ```
 - Modify info of your new dataset in ```PVN3D/pvn3d/common.py``` 
 - Write your dataset preprocess script following ```PVN3D/pvn3d/datasets/ycb/ycb_dataset.py``` (for multi objects of a scene) or ```PVN3D/pvn3d/datasets/linemod/linemod_dataset.py``` (for single object of a scene). Note that you should modify or call the function that get your model info, such as 3D keypoints, center points, and radius properly.
 - (*Important!*) Visualize and check if you process the data properly, eg, the projected keypoint and center point, the semantic label of each point, etc.
 - For inference, make sure that you load the 3D keypoints, center point, and radius of your objects in the object coordinate system properly in ```PVN3D/pvn3d/lib/utils/pvn3d_eval_utils.py```.
 
+- Run with:
+```
+  cd ~/PVN3D/pvn3d python 
+  -m train.train_opendr_pvn3d
+```
 
 ## Citations
 Please cite [PVN3D](https://arxiv.org/abs/1911.04231) if you use this repository in your publications:

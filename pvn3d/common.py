@@ -10,7 +10,7 @@ def ensure_fd(fd):
 
 
 class Config:
-    def __init__(self, dataset_name='ycb', cls_type=''):
+    def __init__(self, dataset_name='EngineParts', cls_type=''):
         self.dataset_name = dataset_name
         self.exp_dir = os.path.dirname(__file__)
         self.exp_name = os.path.basename(self.exp_dir)
@@ -33,15 +33,15 @@ class Config:
         self.log_eval_dir = os.path.join(self.log_dir, 'eval_results', self.cls_type)
         ensure_fd(self.log_eval_dir)
 
-        self.n_total_epoch = 25
-        self.mini_batch_size = 20
-        self.num_mini_batch_per_epoch = 87 # 4000
-        self.val_mini_batch_size = 20
-        self.val_num_mini_batch_per_epoch = 30 # 125
+        self.n_total_epoch = 81 #81
+        self.mini_batch_size = 1 #1
+        self.num_mini_batch_per_epoch = 6 # 4000
+        self.val_mini_batch_size = 1
+        self.val_num_mini_batch_per_epoch = 6 # 125
         self.test_mini_batch_size = 1
 
         self.n_sample_points = 8192 + 4096
-        self.n_keypoints = 8
+        self.n_keypoints = 16
         self.n_min_points = 400
 
         self.noise_trans = 0.05 # range of the random noise of translation added to the training data
@@ -131,38 +131,115 @@ class Config:
 
         elif self.dataset_name == 'CrankSlider':
 
-            print("inside CrankSlider <<<" + str(dataset_name))
+            print("inside EngineParts <<<" + str(dataset_name))
             self.n_objects = 8 + 1
             self.n_classes = 8 + 1
-            self.CrankSlider_cls_lst_p = os.path.abspath(
+            self.EngineParts_cls_lst_p = os.path.abspath(
                 os.path.join(
-                    self.exp_dir, 'datasets/CrankSlider/dataset_config/classes.txt'
+                    self.exp_dir, 'datasets/EngineParts/dataset_config/classes.txt'
                 )
-            ) 
-            self.CrankSlider_root = os.path.abspath(
+            )
+            self.EngineParts_root = os.path.abspath(
                 os.path.join(
-                    self.exp_dir, 'datasets/CrankSlider/CrankSlider_dataset'
+                    self.exp_dir, 'datasets/EngineParts/EngineParts_dataset'
                 )
             )
 
-            self.CrankSlider_kps_dir = os.path.abspath(
+            self.EngineParts_kps_dir = os.path.abspath(
                 os.path.join(
-                    self.exp_dir, 'datasets/CrankSlider/CrankSlider_object_kps'
+                    self.exp_dir, 'datasets/EngineParts/EngineParts_object_kps'
                 )
             )
-            CrankSlider_r_lst_p = os.path.abspath(
+            EngineParts_r_lst_p = os.path.abspath(
                 os.path.join(
-                    self.exp_dir, 'datasets/CrankSlider/dataset_config/radius.txt'
+                    self.exp_dir, 'datasets/EngineParts/dataset_config/radius.txt'
                 )
             )
             self.use_preprocess = True
-            self.CrankSlider_r_lst = list(np.loadtxt(CrankSlider_r_lst_p))
-            self.CrankSlider_cls_lst = self.read_lines(self.CrankSlider_cls_lst_p)
-            self.CrankSlider_sym_cls_ids = [1, 2, 3, 5]
-            self.CrankSlider_test_pkl_p = os.path.join(
+            self.EngineParts_r_lst = list(np.loadtxt(EngineParts_r_lst_p))
+            self.EngineParts_cls_lst = self.read_lines(self.EngineParts_cls_lst_p)
+            self.EngineParts_test_pkl_p = os.path.join(
                 self.exp_dir,
-                'datasets/CrankSlider/test_val_data_pts{}.pkl'.format(self.n_sample_points)
+                'datasets/EngineParts/test_val_data_pts{}.pkl'.format(self.n_sample_points)
             )
+        elif self.dataset_name == 'EngineParts':
+
+            print("inside EngineParts <<<" + str(dataset_name))
+            self.n_objects = 1 + 1
+            self.n_classes = 1 + 1
+
+            self.EngineParts_cls_lst_p = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/EngineParts/dataset_config/classes.txt'
+                )
+            )
+            self.EngineParts_root = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/EngineParts/EngineParts_dataset'
+                )
+            )
+
+            self.EngineParts_kps_dir = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/EngineParts/EngineParts_object_kps'
+                )
+            )
+            EngineParts_r_lst_p = os.path.abspath(
+                os.path.join(
+                    self.exp_dir, 'datasets/EngineParts/dataset_config/radius.txt'
+                )
+            )
+            self.use_preprocess = True
+            self.EngineParts_r_lst = 1
+            self.EngineParts_cls_lst = self.read_lines(self.EngineParts_cls_lst_p)
+            self.EngineParts_sym_cls_ids = []
+            self.EngineParts_test_pkl_p = os.path.join(
+                self.exp_dir,
+                'datasets/EngineParts/test_val_data_pts{}.pkl'.format(self.n_sample_points)
+            )
+
+        elif self.dataset_name == 'EngineParts_lm':
+            print("inside engineparts <<<" + str(dataset_name))
+            self.n_objects = 4 + 1
+            self.n_classes = 4 + 1
+            self.lm_cls_lst = [
+                1, 2, 3, 4
+            ]
+            self.lm_sym_cls_ids = []
+            self.lm_obj_dict={
+                '3d_common_line':1,
+                '3d_fuel_line2':2,
+                '3d_housing':3,
+                'ValveTappet':4,
+            }
+            self.lm_id2obj_dict = dict(
+                zip(self.lm_obj_dict.values(), self.lm_obj_dict.keys())
+            )
+            self.lm_root = os.path.abspath(
+                os.path.join(self.exp_dir, 'datasets/EngineParts/EngineParts_dataset/')
+            )
+            self.lm_kps_dir = os.path.abspath(
+                os.path.join(self.exp_dir, 'datasets/linemod/lm_obj_kps/')
+            )
+            self.lm_sym_cls_ids = []
+            self.val_test_pkl_p = os.path.join(
+                self.exp_dir, 'datasets/linemod/test_val_data.pkl',
+            )
+            prep_fd = os.path.join(
+                self.lm_root, "preprocess_testset"
+            )
+            ensure_fd(prep_fd)
+            self.preprocessed_testset_ptn = os.path.abspath(
+                os.path.join(prep_fd, '{}_pp_vts.pkl')
+            )
+            self.preprocessed_testset_pth = self.preprocessed_testset_ptn.format(cls_type)
+            self.use_preprocess = False
+
+            lm_r_pth = os.path.join(self.lm_root, "dataset_config/models_info.yml")
+            lm_r_file = open(os.path.join(lm_r_pth), "r")
+            self.lm_r_lst = yaml.load(lm_r_file)
+
+            self.val_nid_ptn = "/data/6D_Pose_Data/datasets/LINEMOD/pose_nori_lists/{}_real_val.nori.list"
 
         else:
             print("inside linemode <<<" + str(dataset_name))
@@ -173,10 +250,10 @@ class Config:
             ]
             self.lm_sym_cls_ids = [10, 11]
             self.lm_obj_dict={
-                'ape':1,
-                'benchvise':2,
-                'cam':4,
-                'can':5,
+                '3d_common_line':1,
+                '3d_fuel_line2':2,
+                '3d_housing':3,
+                'ValveTappet':4,
                 'cat':6,
                 'driller':8,
                 'duck':9,
@@ -237,9 +314,12 @@ class Config:
             'openDR': np.array([[554.25469119, 0.,         320.5],
                                 [0.,        554.25469119,  240.5],
                                 [0.,        0.,         1.]]),
-            'CrankSlider': np.array([[554.25469119, 0.,         320.5],
+            'EngineParts': np.array([[554.25469119, 0.,         320.5],
                                 [0.,        554.25469119,  240.5],
-                                [0.,        0.,         1.]])
+                                [0.,        0.,         1.]]),
+            'EngineParts': np.array([[554.25469119, 0., 320.5],
+                                     [0., 554.25469119, 240.5],
+                                     [0., 0., 1.]])
         }
 
     def read_lines(self, p):

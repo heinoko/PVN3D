@@ -1,6 +1,6 @@
 import sys
 import lib.utils.pcl_helper as pch
-sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')		#This is to remove ROS-python from the PYTHONPATH which messes up the Python 3 env this project works with
+#sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')		#This is to remove ROS-python from the PYTHONPATH which messes up the Python 3 env this project works with
 import lib.utils.basic_utils as bs_utl #Basic_Utils
 import pcl
 import numpy as np
@@ -34,23 +34,23 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-dataset_folder = {'openDR':'openDR_dataset', 'linemod':'Linemod_preprocessed', 'ycb':'ycb_dataset', 'CrankSlider': 'CrankSlider_dataset'}
-kps_folder = {'openDR':'openDR_object_kps', 'linemod':'lm_object_kps', 'ycb':'ycb_object_kps', 'CrankSlider': 'CrankSlider_object_kps'}
+dataset_folder = {'openDR':'openDR_dataset', 'linemod':'Linemod_preprocessed', 'ycb':'ycb_dataset', 'CrankSlider': 'CrankSlider_dataset', 'EngineParts':'EngineParts_dataset'}
+kps_folder = {'openDR':'openDR_object_kps', 'linemod':'lm_object_kps', 'ycb':'ycb_object_kps', 'CrankSlider': 'CrankSlider_object_kps', 'EngineParts':'EngineParts_object_kps'}
 
 
 cls_ids = args.cls_id
 
 if args.dataset == 'openDR':
 	cls_ids = [1,2,3,4,5,6,7,8,9,10]
-elif args.dataset == 'CrankSlider':
-	cls_ids = [1,2,3,4,5,6,7,8]
+elif args.dataset == 'EngineParts':
+	cls_ids = [1, 2, 3, 4]
 
 
 
 for cls_id in cls_ids:
 	
 	print('Writing kps for class '+str(cls_id))
-	pcd = pcl.load('./datasets/'+args.dataset+'/'+dataset_folder[args.dataset]+'/models/obj_'+str(cls_id)+'.pcd')
+	pcd = pcl.load('./datasets/'+args.dataset+'/'+dataset_folder[args.dataset]+'/models/obj_'+str(cls_id)+'.ply')
 	pts = np.array(pcd)
 	fps_idx = bs_utl.farthestPointSampling(pts, args.n_kps)
 
